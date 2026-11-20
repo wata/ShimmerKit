@@ -2,6 +2,8 @@
 
 A shimmer for SwiftUI loading placeholders that costs nothing once it's off screen.
 
+<img src="Docs/demo.gif" width="420" alt="Placeholder rows shimmering, with the band traveling down from row to row">
+
 ```swift
 import ShimmerKit
 

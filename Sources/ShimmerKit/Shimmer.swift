@@ -2,10 +2,10 @@ import SwiftUI
 
 public extension View {
     /**
-     読み込み中の場所取りに、左上から右下へ光の帯を流す。
+     Sweeps a band of light from the top leading corner to the bottom trailing corner of a loading placeholder.
 
-     - active: false のときは何もしない
-     - delay: 帯の遅れ（秒）。行ごとに少しずつ増やすと、帯が行をまたいで下へ流れる
+     - active: Does nothing when false.
+     - delay: How far the band lags, in seconds. Increase it a little per row to make the band travel down across rows.
      */
     @ViewBuilder
     func shimmering(active: Bool = true, delay: TimeInterval = 0) -> some View {
@@ -16,31 +16,31 @@ public extension View {
         }
     }
 
-    /// 読み込み中の間、中身を伏せ字にして光を流し、押せなくする。読み込み中に見せるサンプルの内容に付ける
+    /// While loading, redacts the content, shimmers it, and disables hit testing. Apply it to the sample content shown during loading.
     func shimmering(isLoading: Bool, delay: TimeInterval = 0) -> some View {
         redacted(reason: isLoading ? .placeholder : [])
             .shimmering(active: isLoading, delay: delay)
             .allowsHitTesting(!isLoading)
     }
 
-    /// この中の光のマスクを替える。帯の外の濃さを上げたいとき（明るい地で伏せ字が背景に溶けるときなど）に、アプリの一番外で一度だけ付ける
+    /// Replaces the shimmer mask for everything inside. Use it to raise the resting opacity outside the band (for example when placeholders fade into a light background), once at the root of the app.
     func shimmerGradient(_ gradient: Gradient) -> some View {
         environment(\.shimmerGradient, gradient)
     }
 }
 
 public extension EnvironmentValues {
-    /// 光のマスク。帯の外を 0.3、帯を 1 にした黒が既定
+    /// The shimmer mask. Defaults to black at 0.3 opacity outside the band and 1 inside it.
     @Entry var shimmerGradient = Gradient(colors: [.black.opacity(0.3), .black, .black.opacity(0.3)])
 }
 
 /**
- repeatForever のアニメーションではなく、TimelineView で時刻から帯の位置を決めて描く。
+ Draws the band at a position computed from the clock in a `TimelineView`, rather than with a `repeatForever` animation.
 
- - repeatForever は、そのビューが画面から外れても回り続ける。一覧から外れた場所取りが光り続け、何もしていない画面で CPU を 15〜70% 使い続けた（HomeReel の Mac 版、2026-11-19）
- - 一覧の画面外に作り置かれたビューでは TimelineView も進むことがあるので、画面から外れている間は止める（止めないと同じ画面で 20〜30% 残った）
- - 位置を時刻だけから決めるので、同じ画面の光はいつもそろって流れ、`delay` でずらした行の間隔も崩れない（repeatForever に付けた delay は周期ごとに挟まるので、行ごとに周期が変わってばらける）
- - 視差効果を減らす設定では流さない（HIG: Motion）。伏せ字だけで読み込み中と分かる
+ - A `repeatForever` animation keeps running after its view leaves the screen. Placeholders scrolled out of a list kept shimmering and burning CPU while the window sat idle.
+ - A `TimelineView` can also keep ticking in views a lazy stack has prepared off screen, so the timeline is paused while the view is off screen.
+ - Because the position depends only on the clock, every shimmer on screen stays in sync, and the spacing between rows offset by `delay` never drifts. (A delay on a `repeatForever` animation is inserted every cycle, so each row ends up with a different period and they scatter.)
+ - Doesn't move when Reduce Motion is on (HIG: Motion). The redaction alone shows that the content is loading.
  */
 struct Shimmer: ViewModifier {
     let delay: TimeInterval
@@ -68,18 +68,18 @@ struct Shimmer: ViewModifier {
         }
     }
 
-    /// 帯が左上の外から右下の外へ抜けるまでの進み具合（0〜1）。抜けたあと、次に入るまで少し間を置く
-    static func progress(at date: Date, delay: TimeInterval) -> Double {
+    /// How far the band has traveled from outside the top leading corner to outside the bottom trailing corner (0–1). Pauses briefly after it leaves before the next sweep.
+    nonisolated static func progress(at date: Date, delay: TimeInterval) -> Double {
         let elapsed = (date.timeIntervalSinceReferenceDate - delay).truncatingRemainder(dividingBy: duration + pause)
         return max(0, elapsed - pause) / duration
     }
 
-    private static let duration = 1.5
-    private static let pause = 0.25
+    nonisolated static let duration = 1.5
+    nonisolated static let pause = 0.25
 }
 
 extension Shimmer {
-    /// 帯の幅だけ枠の外から入り、枠の外へ抜ける斜めのグラデーション
+    /// A diagonal gradient that enters from one band width outside the frame and exits fully outside it.
     private struct Band: View {
         let gradient: Gradient
         let progress: Double
